@@ -1,1 +1,87 @@
 <p>我的个人网站。 </p>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>个人博客</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        header {
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            padding: 1rem;
+        }
+        main {
+            padding: 2rem;
+            max-width: 800px;
+            margin: auto;
+        }
+        .work-item {
+            background-color: #fff;
+            border-radius: 5px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .work-item h2 {
+            margin-top: 0;
+        }
+        .work-item a {
+            display: inline-block;
+            background-color: #333;
+            color: #fff;
+            padding: 0.5rem 1rem;
+            text-decoration: none;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>我的个人博客</h1>
+    </header>
+    <main id="work-container"></main>
+
+    <script>
+        const workItems = [
+            {
+                title: "毕业论文",
+                description: "这是我的毕业论文，探讨了...",
+                link: "C:\\Users\\xfc05\\Documents\\FinalEssay.pdf"
+            },
+            {
+                title: "SID论坛海报",
+                description: "这是我为SID论坛设计的海报，展示了...",
+                link: "C:\\Users\\xfc05\\Documents\\SID Forum海报.pdf"
+            }
+        ];
+
+        function createWorkItem(item) {
+            return `
+                <div class="work-item">
+                    <h2>${item.title}</h2>
+                    <p>${item.description}</p>
+                    <a href="${item.link}" target="_blank">查看详情</a>
+                </div>
+            `;
+        }
+
+        function displayWorkItems() {
+            const container = document.getElementById('work-container');
+            workItems.forEach(item => {
+                container.innerHTML += createWorkItem(item);
+            });
+        }
+
+        displayWorkItems();
+    </script>
+</body>
+</html>
