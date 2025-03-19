@@ -1,0 +1,1428 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>常微分方程动态可视化器</title>
+    <meta charset="UTF-8">
+    <!-- 引入必要的库 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f5f5f5;
+        }
+        .container {
+            width: 90%;
+            max-width: 1000px;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .input-area {
+            width: 100%;
+            margin-bottom: 20px;
+            position: relative;
+        }
+        #equation-input {
+            width: 100%;
+            padding: 10px;
+            font-size: 18px;
+            font-family: 'Courier New', monospace;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        #suggestions {
+            position: absolute;
+            width: 100%;
+            max-height: 200px;
+            overflow-y: auto;
+            background-color: white;
+            border: 1px solid #ddd;
+            border-top: none;
+            border-radius: 0 0 5px 5px;
+            z-index: 100;
+            display: none;
+        }
+        .suggestion {
+            padding: 8px 10px;
+            cursor: pointer;
+        }
+        .suggestion:hover {
+            background-color: #f0f0f0;
+        }
+        .virtual-keyboard {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            gap: 5px;
+            margin-bottom: 20px;
+        }
+        .key {
+            padding: 10px;
+            text-align: center;
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.2s;
+        }
+        .key:hover {
+            background-color: #e0e0e0;
+        }
+        .key:active {
+            background-color: #d0d0d0;
+        }
+        .wide-key {
+            grid-column: span 2;
+        }
+        .visualization-container {
+            position: relative;
+            width: 100%;
+            height: 500px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: white;
+            overflow: hidden;
+        }
+        #visualization-canvas {
+            width: 100%;
+            height: 100%;
+        }
+        .parameters {
+            width: 100%;
+            margin-top: 20px;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+        .parameter-control {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 10px;
+        }
+        .parameter-control label {
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .parameter-control input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .parameter-control select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        #latex-display {
+            margin-top: 10px;
+            margin-bottom: 20px;
+            min-height: 50px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #fafafa;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .action-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .action-btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        .action-btn:hover {
+            background-color: #45a049;
+        }
+        .action-btn.secondary {
+            background-color: #3498db;
+        }
+        .action-btn.secondary:hover {
+            background-color: #2980b9;
+        }
+        .action-btn.tertiary {
+            background-color: #f39c12;
+        }
+        .action-btn.tertiary:hover {
+            background-color: #d35400;
+        }
+        .tab-container {
+            margin-top: 10px;
+            display: flex;
+            border-bottom: 1px solid #ddd;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background-color: #f0f0f0;
+            border: 1px solid #ddd;
+            border-bottom: none;
+            margin-right: 5px;
+            border-radius: 5px 5px 0 0;
+        }
+        .tab.active {
+            background-color: white;
+            border-bottom: 1px solid white;
+            margin-bottom: -1px;
+        }
+        .tab-content {
+            display: none;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-top: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        /* 全屏模式样式 */
+        .fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 9999;
+            background-color: white;
+            padding: 0;
+            margin: 0;
+            border: none;
+            border-radius: 0;
+            box-shadow: none;
+        }
+        .controls-overlay {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            display: flex;
+            gap: 10px;
+            z-index: 10000;
+        }
+        .control-button {
+            background-color: rgba(0, 0, 0, 0.6);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            font-size: 18px;
+            transition: background-color 0.3s;
+        }
+        .control-button:hover {
+            background-color: rgba(0, 0, 0, 0.8);
+        }
+        .particle {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            background-color: red;
+            border-radius: 50%;
+            pointer-events: none;
+            box-shadow: 0 0 5px rgba(255, 0, 0, 0.7);
+        }
+        /* 粒子控制样式 */
+        .particles-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        /* 颜色渐变预览 */
+        .gradient-preview {
+            height: 30px;
+            width: 100%;
+            border-radius: 4px;
+            margin-top: 5px;
+            background: linear-gradient(to right, blue, magenta);
+        }
+        .color-scheme-preview {
+            height: 30px;
+            width: 100%;
+            border-radius: 4px;
+            margin-top: 5px;
+            display: flex;
+        }
+        .color-scheme-preview div {
+            flex: 1;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>常微分方程动态可视化器</h1>
+        
+        <div class="input-area">
+            <label for="equation-input">输入常微分方程（形式如 dy/dx = f(x, y)）：</label>
+            <input type="text" id="equation-input" placeholder="例如，y' = x + y 或 dy/dx = sin(x) * y" autocomplete="off" />
+            <div id="suggestions"></div>
+            <div id="latex-display"></div>
+        </div>
+        
+        <div class="virtual-keyboard">
+            <!-- 数字和基本运算符 -->
+            <div class="key">1</div>
+            <div class="key">2</div>
+            <div class="key">3</div>
+            <div class="key">+</div>
+            <div class="key">-</div>
+            <div class="key">sin</div>
+            <div class="key">cos</div>
+            <div class="key">tan</div>
+            <div class="key">^</div>
+            <div class="key">√</div>
+            
+            <div class="key">4</div>
+            <div class="key">5</div>
+            <div class="key">6</div>
+            <div class="key">*</div>
+            <div class="key">/</div>
+            <div class="key">log</div>
+            <div class="key">ln</div>
+            <div class="key">exp</div>
+            <div class="key">(</div>
+            <div class="key">)</div>
+            
+            <div class="key">7</div>
+            <div class="key">8</div>
+            <div class="key">9</div>
+            <div class="key">x</div>
+            <div class="key">y</div>
+            <div class="key">π</div>
+            <div class="key">e</div>
+            <div class="key">.</div>
+            <div class="key">,</div>
+            <div class="key">;</div>
+            
+            <div class="key">0</div>
+            <div class="key">dy/dx</div>
+            <div class="key">y'</div>
+            <div class="key">=</div>
+            <div class="key wide-key">⌫</div>
+            <div class="key wide-key">清除</div>
+            <div class="key wide-key" id="solve-key">=</div>
+        </div>
+
+        <div class="tab-container">
+            <div class="tab active" data-tab="parameters">参数设置</div>
+            <div class="tab" data-tab="particles">粒子设置</div>
+            <div class="tab" data-tab="help">帮助</div>
+        </div>
+        
+        <div class="tab-content active" id="parameters-tab">
+            <div class="parameters">
+                <div class="parameter-control">
+                    <label for="x-min">X 最小值:</label>
+                    <input type="number" id="x-min" value="-10" step="1" />
+                </div>
+                <div class="parameter-control">
+                    <label for="x-max">X 最大值:</label>
+                    <input type="number" id="x-max" value="10" step="1" />
+                </div>
+                <div class="parameter-control">
+                    <label for="y-min">Y 最小值:</label>
+                    <input type="number" id="y-min" value="-10" step="1" />
+                </div>
+                <div class="parameter-control">
+                    <label for="y-max">Y 最大值:</label>
+                    <input type="number" id="y-max" value="10" step="1" />
+                </div>
+                <div class="parameter-control">
+                    <label for="vector-density">向量场密度:</label>
+                    <input type="range" id="vector-density" min="5" max="30" value="15" />
+                </div>
+                <div class="parameter-control">
+                    <label for="vector-scale">向量缩放:</label>
+                    <input type="range" id="vector-scale" min="0.1" max="2" value="0.5" step="0.1" />
+                </div>
+                <div class="parameter-control">
+                    <label for="vector-animation-speed">向量场动画速度:</label>
+                    <input type="range" id="vector-animation-speed" min="0.1" max="5" value="1" step="0.1" />
+                </div>
+                <div class="parameter-control">
+                    <label for="initial-x">初始 X:</label>
+                    <input type="number" id="initial-x" value="0" step="0.1" />
+                </div>
+                <div class="parameter-control">
+                    <label for="initial-y">初始 Y:</label>
+                    <input type="number" id="initial-y" value="1" step="0.1" />
+                </div>
+                <div class="parameter-control">
+                    <label for="step-size">积分步长:</label>
+                    <input type="number" id="step-size" value="0.1" step="0.01" min="0.01" max="1" />
+                </div>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="particles-tab">
+            <div class="particles-controls">
+                <div class="parameter-control">
+                    <label for="particle-count">粒子数量:</label>
+                    <input type="range" id="particle-count" min="10" max="500" value="100" />
+                </div>
+                <div class="parameter-control">
+                    <label for="particle-speed">粒子速度:</label>
+                    <input type="range" id="particle-speed" min="0.1" max="5" value="1" step="0.1" />
+                </div>
+                <div class="parameter-control">
+                    <label for="particle-size">粒子大小:</label>
+                    <input type="range" id="particle-size" min="1" max="10" value="3" step="0.5" />
+                </div>
+                <div class="parameter-control">
+                    <label for="particle-lifetime">粒子寿命(秒):</label>
+                    <input type="range" id="particle-lifetime" min="1" max="30" value="10" />
+                </div>
+                <div class="parameter-control">
+                    <label for="color-scheme">颜色方案:</label>
+                    <select id="color-scheme">
+                        <option value="blue-magenta">蓝 - 粉红 (默认)</option>
+                        <option value="blue-red">蓝 - 红</option>
+                        <option value="green-red">绿 - 红</option>
+                        <option value="purple-yellow">紫 - 黄</option>
+                        <option value="cyan-orange">青 - 橙</option>
+                        <option value="rainbow">彩虹</option>
+                    </select>
+                    <div class="color-scheme-preview" id="color-scheme-preview">
+                        <div style="background-color: blue;"></div>
+                        <div style="background-color: magenta;"></div>
+                    </div>
+                </div>
+                <div class="parameter-control">
+                    <label for="custom-color-slow">自定义慢速颜色:</label>
+                    <input type="color" id="custom-color-slow" value="#0000ff" />
+                </div>
+                <div class="parameter-control">
+                    <label for="custom-color-fast">自定义快速颜色:</label>
+                    <input type="color" id="custom-color-fast" value="#ff00ff" />
+                    <div class="gradient-preview" id="custom-gradient-preview"></div>
+                </div>
+                <div class="parameter-control">
+                    <label for="particle-trail">启用粒子轨迹:</label>
+                    <input type="checkbox" id="particle-trail" checked />
+                </div>
+                <div class="parameter-control">
+                    <label for="particle-trail-length">轨迹长度:</label>
+                    <input type="range" id="particle-trail-length" min="5" max="100" value="20" />
+                </div>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="help-tab">
+            <h3>使用说明</h3>
+            <p>此工具可以可视化一阶常微分方程（ODE）。</p>
+            <p><strong>输入方程：</strong> 使用虚拟键盘或物理键盘输入微分方程，格式为 dy/dx = f(x,y) 或 y' = f(x,y)。</p>
+            <p><strong>函数支持：</strong> sin, cos, tan, log, ln, exp, sqrt 等数学函数。</p>
+            <p><strong>可视化：</strong> 点击"可视化"按钮或回车键开始可视化。</p>
+            <p><strong>动态向量场：</strong> 向量场会动态流动，展示微分方程的变化趋势。</p>
+            <p><strong>粒子系统：</strong> 小球会随向量场流动，直观表示解的变化轨迹。粒子颜色会根据速度变化。</p>
+            <p><strong>全屏模式：</strong> 点击"全屏"按钮进入沉浸式体验，观察粒子运动。</p>
+            <p><strong>参数调整：</strong> 调整坐标范围、向量场密度、初始条件、粒子数量等参数。</p>
+            <p><strong>颜色渐变：</strong> 在粒子设置中，可以选择不同的颜色方案，粒子颜色会根据速度变化。默认是慢速粒子蓝色，快速粒子粉色。</p>
+            <h4>推荐方程示例：</h4>
+            <ul>
+                <li><code>y' = -x + y*sin(x^2 + y^2)</code> - 螺旋漩涡</li>
+                <li><code>y' = sin(x^2 + y^2)</code> - 径向波纹</li>
+                <li><code>y' = sin(x)*cos(y)</code> - 交织格子</li>
+                <li><code>y' = sin(x+y)*cos(x-y)</code> - 流线艺术</li>
+                <li><code>y' = x*sin(y) - y*cos(x)</code> - 混沌系统</li>
+            </ul>
+        </div>
+        
+        <div class="action-buttons">
+            <button id="visualize-btn" class="action-btn">可视化</button>
+            <button id="fullscreen-btn" class="action-btn secondary">全屏</button>
+            <button id="play-pause-btn" class="action-btn tertiary" disabled>暂停</button>
+            <button id="reset-btn" class="action-btn tertiary" disabled>重置</button>
+        </div>
+        
+        <div class="visualization-container">
+            <div id="visualization-canvas"></div>
+            <div class="controls-overlay" style="display: none;">
+                <button id="exit-fullscreen" class="control-button">✕</button>
+                <button id="toggle-play" class="control-button">⏸</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 元素引用
+            const equationInput = document.getElementById('equation-input');
+            const latexDisplay = document.getElementById('latex-display');
+            const visualizeBtn = document.getElementById('visualize-btn');
+            const fullscreenBtn = document.getElementById('fullscreen-btn');
+            const playPauseBtn = document.getElementById('play-pause-btn');
+            const resetBtn = document.getElementById('reset-btn');
+            const solveKey = document.getElementById('solve-key');
+            const keys = document.querySelectorAll('.key');
+            const tabs = document.querySelectorAll('.tab');
+            const tabContents = document.querySelectorAll('.tab-content');
+            const exitFullscreenBtn = document.getElementById('exit-fullscreen');
+            const togglePlayBtn = document.getElementById('toggle-play');
+            const visualizationContainer = document.querySelector('.visualization-container');
+            const controlsOverlay = document.querySelector('.controls-overlay');
+            const suggestions = document.getElementById('suggestions');
+            const colorScheme = document.getElementById('color-scheme');
+            const customColorSlow = document.getElementById('custom-color-slow');
+            const customColorFast = document.getElementById('custom-color-fast');
+            const customGradientPreview = document.getElementById('custom-gradient-preview');
+            const colorSchemePreview = document.getElementById('color-scheme-preview');
+            
+            // 参数元素
+            const xMin = document.getElementById('x-min');
+            const xMax = document.getElementById('x-max');
+            const yMin = document.getElementById('y-min');
+            const yMax = document.getElementById('y-max');
+            const vectorDensity = document.getElementById('vector-density');
+            const vectorScale = document.getElementById('vector-scale');
+            const vectorAnimationSpeed = document.getElementById('vector-animation-speed');
+            const initialX = document.getElementById('initial-x');
+            const initialY = document.getElementById('initial-y');
+            const stepSize = document.getElementById('step-size');
+            
+            // 粒子参数元素
+            const particleCount = document.getElementById('particle-count');
+            const particleSpeed = document.getElementById('particle-speed');
+            const particleSize = document.getElementById('particle-size');
+            const particleLifetime = document.getElementById('particle-lifetime');
+            const particleTrail = document.getElementById('particle-trail');
+            const particleTrailLength = document.getElementById('particle-trail-length');
+            
+            // 状态变量
+            let isFullscreen = false;
+            let isPlaying = true;
+            let equation = null;
+            let animationId = null;
+            let particles = [];
+            let svg = null;
+            let xScale = null;
+            let yScale = null;
+            let animationStartTime = 0;
+            
+            // 自动补全建议
+            const commonFunctions = [
+                'sin(x)', 'cos(x)', 'tan(x)', 'x + y', 'x - y', 'x * y', 'x / y', 'x^2 + y^2',
+                'sin(x)*cos(y)', 'exp(x)', 'ln(x)', 'log(x)', 'sqrt(x)', 'sin(x+y)', 'cos(x-y)',
+                'x*sin(y)', 'y*cos(x)', 'sin(x^2 + y^2)', '-y', '-x', 'x*y', '1/y', '1/x',
+                'sin(x) + cos(y)', 'x^2 - y^2', 'sin(x^2)', 'cos(y^2)', 'e^x', 'e^(sin(x))',
+                'x^2 * y', 'y*(1-y)*(2-y)', '-x + y*sin(x^2 + y^2)', 'sin(x+y)*cos(x-y)',
+                'x*sin(y) - y*cos(x)'
+            ];
+            
+            // 颜色方案
+            const colorSchemes = {
+                'blue-magenta': ['#0000ff', '#ff00ff'],
+                'blue-red': ['#0000ff', '#ff0000'],
+                'green-red': ['#00aa00', '#ff0000'],
+                'purple-yellow': ['#8a2be2', '#ffff00'],
+                'cyan-orange': ['#00ffff', '#ff8c00'],
+                'rainbow': ['#0000ff', '#00ff00', '#ffff00', '#ff0000']
+            };
+            
+            // 更新颜色方案预览
+            function updateColorSchemePreview() {
+                const scheme = colorScheme.value;
+                const colors = colorSchemes[scheme];
+                
+                colorSchemePreview.innerHTML = '';
+                
+                if (scheme === 'rainbow') {
+                    // 对于彩虹，创建四个分区
+                    colorSchemePreview.style.background = `linear-gradient(to right, ${colors.join(', ')})`;
+                } else {
+                    // 对于双色，创建两个分区
+                    colorSchemePreview.style.background = `linear-gradient(to right, ${colors[0]}, ${colors[1]})`;
+                }
+            }
+            
+            // 更新自定义渐变预览
+            function updateCustomGradientPreview() {
+                const slowColor = customColorSlow.value;
+                const fastColor = customColorFast.value;
+                customGradientPreview.style.background = `linear-gradient(to right, ${slowColor}, ${fastColor})`;
+            }
+            
+            // 初始化颜色预览
+            updateColorSchemePreview();
+            updateCustomGradientPreview();
+            
+            // 监听颜色方案变化
+            colorScheme.addEventListener('change', updateColorSchemePreview);
+            customColorSlow.addEventListener('input', updateCustomGradientPreview);
+            customColorFast.addEventListener('input', updateCustomGradientPreview);
+            
+            // 根据速度获取颜色
+            function getColorBySpeed(speed) {
+                const scheme = colorScheme.value;
+                
+                // 归一化速度值到 0-1 范围
+                const normalizedSpeed = Math.min(1, Math.max(0, speed));
+                
+                if (scheme === 'custom') {
+                    // 使用自定义颜色
+                    return interpolateColor(
+                        hexToRgb(customColorSlow.value),
+                        hexToRgb(customColorFast.value),
+                        normalizedSpeed
+                    );
+                } else if (scheme === 'rainbow') {
+                    // 彩虹色谱
+                    const colors = colorSchemes[scheme];
+                    if (normalizedSpeed < 0.33) {
+                        return interpolateColor(
+                            hexToRgb(colors[0]),
+                            hexToRgb(colors[1]),
+                            normalizedSpeed * 3
+                        );
+                    } else if (normalizedSpeed < 0.66) {
+                        return interpolateColor(
+                            hexToRgb(colors[1]),
+                            hexToRgb(colors[2]),
+                            (normalizedSpeed - 0.33) * 3
+                        );
+                    } else {
+                        return interpolateColor(
+                            hexToRgb(colors[2]),
+                            hexToRgb(colors[3]),
+                            (normalizedSpeed - 0.66) * 3
+                        );
+                    }
+                } else {
+                    // 双色渐变
+                    const colors = colorSchemes[scheme];
+                    return interpolateColor(
+                        hexToRgb(colors[0]),
+                        hexToRgb(colors[1]),
+                        normalizedSpeed
+                    );
+                }
+            }
+            
+            // 颜色插值函数
+            function interpolateColor(color1, color2, factor) {
+                const result = {
+                    r: Math.round(color1.r + factor * (color2.r - color1.r)),
+                    g: Math.round(color1.g + factor * (color2.g - color1.g)),
+                    b: Math.round(color1.b + factor * (color2.b - color1.b))
+                };
+                return `rgb(${result.r}, ${result.g}, ${result.b})`;
+            }
+            
+            // 将十六进制颜色转换为RGB对象
+            function hexToRgb(hex) {
+                const shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
+                hex = hex.replace(shorthandRegex, (m, r, g, b) => r + r + g + g + b + b);
+                
+                const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                return result ? {
+                    r: parseInt(result[1], 16),
+                    g: parseInt(result[2], 16),
+                    b: parseInt(result[3], 16)
+                } : { r: 0, g: 0, b: 0 };
+            }
+            
+            // 自动补全功能
+            equationInput.addEventListener('input', function() {
+                // 当输入框为空时隐藏建议
+                if (!this.value.trim() || !this.value.includes('=')) {
+                    suggestions.style.display = 'none';
+                    updateLatex();
+                    return;
+                }
+                
+                // 获取等号后的部分
+                const parts = this.value.split('=');
+                if (parts.length > 1) {
+                    const rightPart = parts[1].trim();
+                    
+                    // 仅在右侧有输入时显示建议
+                    if (rightPart) {
+                        // 筛选匹配的函数
+                        const matchedFunctions = commonFunctions.filter(func => 
+                            func.toLowerCase().startsWith(rightPart.toLowerCase())
+                        );
+                        
+                        // 显示建议
+                        if (matchedFunctions.length > 0) {
+                            suggestions.innerHTML = '';
+                            matchedFunctions.forEach(func => {
+                                const div = document.createElement('div');
+                                div.classList.add('suggestion');
+                                div.textContent = parts[0] + '= ' + func;
+                                div.addEventListener('click', function() {
+                                    equationInput.value = this.textContent;
+                                    suggestions.style.display = 'none';
+                                    updateLatex();
+                                });
+                                suggestions.appendChild(div);
+                            });
+                            suggestions.style.display = 'block';
+                        } else {
+                            suggestions.style.display = 'none';
+                        }
+                    } else {
+                        suggestions.style.display = 'none';
+                    }
+                }
+                
+                updateLatex();
+            });
+            
+            // 点击页面其他地方隐藏建议
+            document.addEventListener('click', function(e) {
+                if (e.target !== equationInput && !suggestions.contains(e.target)) {
+                    suggestions.style.display = 'none';
+                }
+            });
+            
+            // 标签切换处理
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tabContents.forEach(c => c.classList.remove('active'));
+                    
+                    this.classList.add('active');
+                    const tabId = this.getAttribute('data-tab');
+                    document.getElementById(tabId + '-tab').classList.add('active');
+                });
+            });
+            
+            // 虚拟键盘处理
+            keys.forEach(key => {
+                key.addEventListener('click', function() {
+                    const keyValue = this.textContent;
+                    let cursorPos = equationInput.selectionStart;
+                    let currentValue = equationInput.value;
+                    
+                    if (keyValue === '⌫') {
+                        // 退格键
+                        if (cursorPos > 0) {
+                            equationInput.value = currentValue.slice(0, cursorPos - 1) + currentValue.slice(cursorPos);
+                            cursorPos -= 1;
+                        }
+                    } else if (keyValue === '清除') {
+                        // 清除全部
+                        equationInput.value = '';
+                        cursorPos = 0;
+                    } else if (keyValue === '=') {
+                        // 触发可视化
+                        visualize();
+                        return;
+                    } else {
+                        // 插入键值
+                        let insertText = keyValue;
+                        
+                        // 特殊处理函数和运算符
+                        if (['sin', 'cos', 'tan', 'log', 'ln', 'exp'].includes(keyValue)) {
+                            insertText = keyValue + '(';
+                        } else if (keyValue === '√') {
+                            insertText = 'sqrt(';
+                        } else if (keyValue === 'π') {
+                            insertText = 'pi';
+                        } else if (keyValue === '^') {
+                            insertText = '^(';
+                        } else if (keyValue === 'dy/dx' || keyValue === "y'") {
+                            // 设置方程左侧
+                            equationInput.value = keyValue + ' = ';
+                            cursorPos = keyValue.length + 3;
+                            equationInput.focus();
+                            equationInput.setSelectionRange(cursorPos, cursorPos);
+                            updateLatex();
+                            return;
+                        }
+                        
+                        equationInput.value = currentValue.slice(0, cursorPos) + insertText + currentValue.slice(cursorPos);
+                        cursorPos += insertText.length;
+                    }
+                    
+                    equationInput.focus();
+                    equationInput.setSelectionRange(cursorPos, cursorPos);
+                    updateLatex();
+                    
+                    // 检查是否应显示自动补全
+                    const event = new Event('input');
+                    equationInput.dispatchEvent(event);
+                });
+            });
+            
+            // 方程输入处理
+            equationInput.addEventListener('input', updateLatex);
+            equationInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    visualize();
+                    suggestions.style.display = 'none';
+                } else if (e.key === 'Tab' && suggestions.style.display === 'block') {
+                    e.preventDefault();
+                    // 选择第一个建议
+                    const firstSuggestion = suggestions.querySelector('.suggestion');
+                    if (firstSuggestion) {
+                        equationInput.value = firstSuggestion.textContent;
+                        suggestions.style.display = 'none';
+                        updateLatex();
+                    }
+                } else if (e.key === 'Escape') {
+                    suggestions.style.display = 'none';
+                }
+            });
+            
+            // 可视化和全屏按钮
+            visualizeBtn.addEventListener('click', visualize);
+            solveKey.addEventListener('click', visualize);
+            fullscreenBtn.addEventListener('click', toggleFullscreen);
+            exitFullscreenBtn.addEventListener('click', exitFullscreen);
+            
+            // 播放暂停和重置按钮
+            playPauseBtn.addEventListener('click', togglePlayPause);
+            resetBtn.addEventListener('click', resetSimulation);
+            togglePlayBtn.addEventListener('click', togglePlayPause);
+            
+            // 更新LaTeX显示
+            function updateLatex() {
+                let eq = equationInput.value;
+                if (!eq) {
+                    latexDisplay.innerHTML = '';
+                    return;
+                }
+                
+                try {
+                    // 转换为LaTeX格式
+                    eq = eq.replace(/sin\(/g, '\\sin(');
+                    eq = eq.replace(/cos\(/g, '\\cos(');
+                    eq = eq.replace(/tan\(/g, '\\tan(');
+                    eq = eq.replace(/log\(/g, '\\log(');
+                    eq = eq.replace(/ln\(/g, '\\ln(');
+                    eq = eq.replace(/exp\(/g, '\\exp(');
+                    eq = eq.replace(/sqrt\(/g, '\\sqrt(');
+                    eq = eq.replace(/pi/g, '\\pi');
+                    eq = eq.replace(/dy\/dx/g, '\\frac{dy}{dx}');
+                    eq = eq.replace(/y'/g, '\\frac{dy}{dx}');
+                    
+                    // 处理指数
+                    let matches = eq.match(/\^(\([^)]+\)|\w)/g);
+                    if (matches) {
+                        matches.forEach(match => {
+                            let power = match.substring(1);
+                            if (power.startsWith('(') && power.endsWith(')')) {
+                                power = power.substring(1, power.length - 1);
+                            }
+                            eq = eq.replace(match, `^{${power}}`);
+                        });
+                    }
+                    
+                    // 特殊情况处理
+                    eq = eq.replace(/\^\{([^{}]+)\}(\()/g, '^{$1}\\cdot(');
+                    
+                    latexDisplay.innerHTML = '$$' + eq + '$$';
+                    MathJax.typeset([latexDisplay]);
+                } catch (error) {
+                    console.error("LaTeX渲染错误:", error);
+                    // 降级显示
+                    latexDisplay.textContent = eq;
+                }
+            }
+            
+            // 解析方程
+            function parseEquation(eq) {
+                // 去除空格
+                eq = eq.replace(/\s+/g, '');
+                
+                // 提取方程右侧
+                if (eq.includes('=')) {
+                    eq = eq.split('=')[1].trim();
+                }
+                
+                // 转换为math.js表达式
+                try {
+                    // 替换一些数学表达式以适应math.js
+                    eq = eq.replace(/\^/g, '**');
+                    
+                    return math.compile(eq);
+                } catch (error) {
+                    console.error("解析方程错误:", error);
+                    alert("解析方程错误: " + error.message);
+                    return null;
+                }
+            }
+            
+            // 计算向量场
+            function calculateVectorField(equation, xRange, yRange, density) {
+                const vectors = [];
+                const dx = (xRange[1] - xRange[0]) / density;
+                const dy = (yRange[1] - yRange[0]) / density;
+                
+                for (let i = 0; i <= density; i++) {
+                    for (let j = 0; j <= density; j++) {
+                        const x = xRange[0] + i * dx;
+                        const y = yRange[0] + j * dy;
+                        
+                        try {
+                            // 对于ODE dy/dx = f(x,y)，向量为(1, f(x,y))
+                            const slope = equation.evaluate({ x: x, y: y });
+                            
+                            // 归一化向量
+                            const magnitude = Math.sqrt(1 + slope * slope);
+                            const vector = {
+                                x: x,
+                                y: y,
+                                dx: 1 / magnitude,
+                                dy: slope / magnitude,
+                                speed: Math.abs(slope) // 保存斜率的绝对值作为"速度"
+                            };
+                            
+                            vectors.push(vector);
+                        } catch (error) {
+                            console.warn(`评估(${x}, ${y})时出错:`, error);
+                            // 跳过这个点
+                        }
+                    }
+                }
+                
+                return vectors;
+            }
+            
+            // 全屏切换
+            function toggleFullscreen() {
+                if (!isFullscreen) {
+                    enterFullscreen();
+                } else {
+                    exitFullscreen();
+                }
+            }
+            
+            function enterFullscreen() {
+                isFullscreen = true;
+                visualizationContainer.classList.add('fullscreen');
+                controlsOverlay.style.display = 'flex';
+                
+                // 如果浏览器支持全屏API，则使用它
+                if (visualizationContainer.requestFullscreen) {
+                    visualizationContainer.requestFullscreen();
+                } else if (visualizationContainer.mozRequestFullScreen) { /* Firefox */
+                    visualizationContainer.mozRequestFullScreen();
+                } else if (visualizationContainer.webkitRequestFullscreen) { /* Chrome, Safari & Opera */
+                    visualizationContainer.webkitRequestFullscreen();
+                } else if (visualizationContainer.msRequestFullscreen) { /* IE/Edge */
+                    visualizationContainer.msRequestFullscreen();
+                }
+                
+                // 重新绘制以适应新的大小
+                if (equation) {
+                    drawVisualization(equation);
+                }
+            }
+            
+            function exitFullscreen() {
+                isFullscreen = false;
+                visualizationContainer.classList.remove('fullscreen');
+                controlsOverlay.style.display = 'none';
+                
+                // 如果浏览器支持退出全屏API，则使用它
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.mozCancelFullScreen) { /* Firefox */
+                    document.mozCancelFullScreen();
+                } else if (document.webkitExitFullscreen) { /* Chrome, Safari & Opera */
+                    document.webkitExitFullscreen();
+                } else if (document.msExitFullscreen) { /* IE/Edge */
+                    document.msExitFullscreen();
+                }
+                
+                // 重新绘制以适应新的大小
+                if (equation) {
+                    drawVisualization(equation);
+                }
+            }
+            
+            // 播放暂停切换
+            function togglePlayPause() {
+                isPlaying = !isPlaying;
+                
+                if (isPlaying) {
+                    playPauseBtn.textContent = '暂停';
+                    togglePlayBtn.textContent = '⏸';
+                    startAnimation();
+                } else {
+                    playPauseBtn.textContent = '播放';
+                    togglePlayBtn.textContent = '▶';
+                    stopAnimation();
+                }
+            }
+            
+            // 重置模拟
+            function resetSimulation() {
+                // 重置所有粒子
+                particles = [];
+                createParticles();
+                
+                // 如果当前是暂停状态，重新开始动画
+                if (!isPlaying) {
+                    isPlaying = true;
+                    playPauseBtn.textContent = '暂停';
+                    togglePlayBtn.textContent = '⏸';
+                    startAnimation();
+                }
+            }
+            
+            // 停止动画
+            function stopAnimation() {
+                if (animationId !== null) {
+                    cancelAnimationFrame(animationId);
+                    animationId = null;
+                }
+            }
+            
+            // 开始动画
+            function startAnimation() {
+                if (animationId === null) {
+                    animationStartTime = performance.now();
+                    animate();
+                }
+            }
+            
+            // 创建粒子
+            function createParticles() {
+                const count = parseInt(particleCount.value);
+                const xMinVal = parseFloat(xMin.value);
+                const xMaxVal = parseFloat(xMax.value);
+                const yMinVal = parseFloat(yMin.value);
+                const yMaxVal = parseFloat(yMax.value);
+                const lifetime = parseInt(particleLifetime.value) * 1000; // 转换为毫秒
+                
+                particles = [];
+                
+                for (let i = 0; i < count; i++) {
+                    // 随机生成粒子位置
+                    const x = xMinVal + Math.random() * (xMaxVal - xMinVal);
+                    const y = yMinVal + Math.random() * (yMaxVal - yMinVal);
+                    
+                    particles.push({
+                        x: x,
+                        y: y,
+                        age: 0,
+                        lifetime: lifetime,
+                        trail: particleTrail.checked ? [] : null,
+                        trailLength: parseInt(particleTrailLength.value),
+                        speed: 0 // 初始速度为0
+                    });
+                }
+            }
+            
+            // 更新粒子
+            function updateParticles(deltaTime) {
+                if (!equation) return;
+                
+                const speed = parseFloat(particleSpeed.value);
+                const xMinVal = parseFloat(xMin.value);
+                const xMaxVal = parseFloat(xMax.value);
+                const yMinVal = parseFloat(yMin.value);
+                const yMaxVal = parseFloat(yMax.value);
+                const h = parseFloat(stepSize.value) * speed * (deltaTime / 16.67); // 归一化到60fps
+                
+                // 找出所有粒子的最大速度用于归一化
+                let maxSpeed = 0.1; // 设置一个小的初始值避免除以零
+                
+                particles.forEach(particle => {
+                    try {
+                        const slope = equation.evaluate({ x: particle.x, y: particle.y });
+                        maxSpeed = Math.max(maxSpeed, Math.abs(slope));
+                    } catch (error) {
+                        // 忽略错误
+                    }
+                });
+                
+                particles.forEach((particle, i) => {
+                    // 更新粒子年龄
+                    particle.age += deltaTime;
+                    
+                    // 如果粒子超过寿命，重新生成
+                    if (particle.age > particle.lifetime) {
+                        // 随机生成新位置
+                        particle.x = xMinVal + Math.random() * (xMaxVal - xMinVal);
+                        particle.y = yMinVal + Math.random() * (yMaxVal - yMinVal);
+                        particle.age = 0;
+                        particle.speed = 0;
+                        if (particle.trail) {
+                            particle.trail = [];
+                        }
+                        return;
+                    }
+                    
+                    try {
+                        // 计算当前位置的斜率
+                        const slope = equation.evaluate({ x: particle.x, y: particle.y });
+                        
+                        // 更新粒子速度（归一化到0-1范围）
+                        particle.speed = Math.min(1, Math.abs(slope) / maxSpeed);
+                        
+                        // 使用RK4方法更新位置
+                        const k1 = slope;
+                        const k2 = equation.evaluate({ x: particle.x + h/2, y: particle.y + h/2 * k1 });
+                        const k3 = equation.evaluate({ x: particle.x + h/2, y: particle.y + h/2 * k2 });
+                        const k4 = equation.evaluate({ x: particle.x + h, y: particle.y + h * k3 });
+                        
+                        // 如果需要记录轨迹，保存当前位置
+                        if (particle.trail) {
+                            particle.trail.push({ 
+                                x: particle.x, 
+                                y: particle.y, 
+                                speed: particle.speed // 保存速度以便轨迹也能用颜色表示
+                            });
+                            
+                            // 保持轨迹在指定长度
+                            if (particle.trail.length > particle.trailLength) {
+                                particle.trail.shift();
+                            }
+                        }
+                        
+                        // 更新粒子位置
+                        particle.y = particle.y + h/6 * (k1 + 2*k2 + 2*k3 + k4);
+                        particle.x = particle.x + h;
+                        
+                        // 边界检查 - 如果粒子离开视野，重新生成
+                        if (particle.x < xMinVal || particle.x > xMaxVal || 
+                            particle.y < yMinVal || particle.y > yMaxVal ||
+                            isNaN(particle.x) || isNaN(particle.y) ||
+                            Math.abs(particle.y) > 1000) { // 添加额外检查，避免值爆炸
+                            particle.x = xMinVal + Math.random() * (xMaxVal - xMinVal);
+                            particle.y = yMinVal + Math.random() * (yMaxVal - yMinVal);
+                            particle.age = 0;
+                            particle.speed = 0;
+                            if (particle.trail) {
+                                particle.trail = [];
+                            }
+                        }
+                    } catch (error) {
+                        // 如果计算出错，重新生成粒子
+                        particle.x = xMinVal + Math.random() * (xMaxVal - xMinVal);
+                        particle.y = yMinVal + Math.random() * (yMaxVal - yMinVal);
+                        particle.age = 0;
+                        particle.speed = 0;
+                        if (particle.trail) {
+                            particle.trail = [];
+                        }
+                    }
+                });
+            }
+            
+            // 绘制粒子
+            function drawParticles() {
+                // 先清除所有的粒子元素
+                svg.selectAll('.particle-element').remove();
+                svg.selectAll('.particle-trail').remove();
+                
+                const size = parseFloat(particleSize.value);
+                
+                // 绘制粒子轨迹
+                if (particleTrail.checked) {
+                    particles.forEach((particle, i) => {
+                        if (particle.trail && particle.trail.length > 1) {
+                            // 使用颜色渐变绘制轨迹
+                            particle.trail.forEach((point, j) => {
+                                if (j < particle.trail.length - 1) {
+                                    const nextPoint = particle.trail[j + 1];
+                                    const color = getColorBySpeed(point.speed);
+                                    
+                                    svg.append('line')
+                                        .attr('class', 'particle-trail')
+                                        .attr('x1', xScale(point.x))
+                                        .attr('y1', yScale(point.y))
+                                        .attr('x2', xScale(nextPoint.x))
+                                        .attr('y2', yScale(nextPoint.y))
+                                        .attr('stroke', color)
+                                        .attr('stroke-width', size / 2)
+                                        .attr('stroke-opacity', 0.7);
+                                }
+                            });
+                        }
+                    });
+                }
+                
+                // 绘制粒子
+                particles.forEach((particle, i) => {
+                    const color = getColorBySpeed(particle.speed);
+                    
+                    svg.append('circle')
+                        .attr('class', 'particle-element')
+                        .attr('cx', xScale(particle.x))
+                        .attr('cy', yScale(particle.y))
+                        .attr('r', size)
+                        .attr('fill', color)
+                        .attr('opacity', 0.8);
+                });
+            }
+            
+            // 动画循环
+            function animate(timestamp) {
+                if (!isPlaying) return;
+                
+                // 计算时间增量
+                const deltaTime = timestamp - (animationStartTime || timestamp);
+                animationStartTime = timestamp;
+                
+                // 更新粒子
+                updateParticles(deltaTime);
+                
+                // 绘制粒子
+                drawParticles();
+                
+                // 更新向量场动画
+                updateVectorField(timestamp);
+                
+                // 继续动画循环
+                animationId = requestAnimationFrame(animate);
+            }
+            
+            // 更新向量场动画
+            function updateVectorField(timestamp) {
+                const speed = parseFloat(vectorAnimationSpeed.value);
+                const duration = 2000 / speed; // 完成一个循环的时间（毫秒）
+                const phase = (timestamp % duration) / duration;
+                
+                // 更新向量场的动画
+                svg.selectAll('line.vector')
+                    .attr('stroke-dashoffset', function() {
+                        const length = this.getTotalLength();
+                        return length * (1 - phase);
+                    });
+            }
+            
+            // 可视化函数
+            function visualize() {
+                const eq = equationInput.value;
+                if (!eq) {
+                    alert("请输入一个微分方程");
+                    return;
+                }
+                
+                equation = parseEquation(eq);
+                
+                if (!equation) return;
+                
+                // 开启按钮
+                playPauseBtn.disabled = false;
+                resetBtn.disabled = false;
+                
+                // 绘制可视化
+                drawVisualization(equation);
+                
+                // 创建粒子
+                createParticles();
+                
+                // 重置并开始动画
+                isPlaying = true;
+                playPauseBtn.textContent = '暂停';
+                togglePlayBtn.textContent = '⏸';
+                stopAnimation();
+                startAnimation();
+            }
+            
+            // 绘制可视化
+            function drawVisualization(equation) {
+                const xMinVal = parseFloat(xMin.value);
+                const xMaxVal = parseFloat(xMax.value);
+                const yMinVal = parseFloat(yMin.value);
+                const yMaxVal = parseFloat(yMax.value);
+                const density = parseInt(vectorDensity.value);
+                const scale = parseFloat(vectorScale.value);
+                
+                // 清除先前的可视化
+                const visualizationDiv = document.getElementById('visualization-canvas');
+                visualizationDiv.innerHTML = '';
+                
+                // 创建SVG容器
+                const margin = { top: 20, right: 20, bottom: 30, left: 40 };
+                const width = visualizationDiv.clientWidth - margin.left - margin.right;
+                const height = visualizationDiv.clientHeight - margin.top - margin.bottom;
+                
+                svg = d3.select('#visualization-canvas')
+                    .append('svg')
+                    .attr('width', '100%')
+                    .attr('height', '100%')
+                    .attr('viewBox', `0 0 ${width + margin.left + margin.right} ${height + margin.top + margin.bottom}`)
+                    .append('g')
+                    .attr('transform', `translate(${margin.left},${margin.top})`);
+                
+                // 比例尺
+                xScale = d3.scaleLinear()
+                    .domain([xMinVal, xMaxVal])
+                    .range([0, width]);
+                
+                yScale = d3.scaleLinear()
+                    .domain([yMinVal, yMaxVal])
+                    .range([height, 0]);
+                
+                // 坐标轴
+                const xAxis = d3.axisBottom(xScale);
+                const yAxis = d3.axisLeft(yScale);
+                
+                svg.append('g')
+                    .attr('transform', `translate(0,${yScale(0)})`)
+                    .call(xAxis);
+                
+                svg.append('g')
+                    .attr('transform', `translate(${xScale(0)},0)`)
+                    .call(yAxis);
+                
+                // 网格线
+                svg.selectAll('line.grid-line.x')
+                    .data(xScale.ticks())
+                    .enter()
+                    .append('line')
+                    .attr('class', 'grid-line x')
+                    .attr('x1', d => xScale(d))
+                    .attr('y1', 0)
+                    .attr('x2', d => xScale(d))
+                    .attr('y2', height)
+                    .attr('stroke', '#e0e0e0')
+                    .attr('stroke-width', 0.5);
+                
+                svg.selectAll('line.grid-line.y')
+                    .data(yScale.ticks())
+                    .enter()
+                    .append('line')
+                    .attr('class', 'grid-line y')
+                    .attr('x1', 0)
+                    .attr('y1', d => yScale(d))
+                    .attr('x2', width)
+                    .attr('y2', d => yScale(d))
+                    .attr('stroke', '#e0e0e0')
+                    .attr('stroke-width', 0.5);
+                
+                // 计算向量场
+                const vectorField = calculateVectorField(
+                    equation,
+                    [xMinVal, xMaxVal],
+                    [yMinVal, yMaxVal],
+                    density
+                );
+                
+                // 找出最大速度用于颜色归一化
+                let maxSpeed = 0.1;
+                vectorField.forEach(vector => {
+                    maxSpeed = Math.max(maxSpeed, vector.speed);
+                });
+                
+                // 绘制向量场
+                svg.selectAll('line.vector')
+                    .data(vectorField)
+                    .enter()
+                    .append('line')
+                    .attr('class', 'vector')
+                    .attr('x1', d => xScale(d.x))
+                    .attr('y1', d => yScale(d.y))
+                    .attr('x2', d => xScale(d.x + d.dx * scale))
+                    .attr('y2', d => yScale(d.y + d.dy * scale))
+                    .attr('stroke', d => getColorBySpeed(d.speed / maxSpeed))
+                    .attr('stroke-width', 1)
+                    .attr('stroke-dasharray', function() {
+                        return this.getTotalLength();
+                    })
+                    .attr('stroke-dashoffset', 0);
+                
+                // 添加箭头
+                svg.selectAll('polygon.arrowhead')
+                    .data(vectorField)
+                    .enter()
+                    .append('polygon')
+                    .attr('class', 'arrowhead')
+                    .attr('points', d => {
+                        const x2 = xScale(d.x + d.dx * scale);
+                        const y2 = yScale(d.y + d.dy * scale);
+                        const angle = Math.atan2(yScale(d.y) - y2, xScale(d.x) - x2);
+                        
+                        const size = 3;
+                        const dx1 = size * Math.cos(angle - Math.PI / 6);
+                        const dy1 = size * Math.sin(angle - Math.PI / 6);
+                        const dx2 = size * Math.cos(angle + Math.PI / 6);
+                        const dy2 = size * Math.sin(angle + Math.PI / 6);
+                        
+                        return `${x2},${y2} ${x2+dx1},${y2+dy1} ${x2+dx2},${y2+dy2}`;
+                    })
+                    .attr('fill', d => getColorBySpeed(d.speed / maxSpeed));
+                
+                // 添加标题
+                svg.append('text')
+                    .attr('x', width / 2)
+                    .attr('y', -5)
+                    .attr('text-anchor', 'middle')
+                    .style('font-size', '16px')
+                    .style('font-weight', 'bold')
+                    .text(eq);
+            }
+            
+            // 初始化LaTeX显示
+            updateLatex();
+            
+            // 监听窗口大小变化，以更新可视化
+            window.addEventListener('resize', function() {
+                if (equation) {
+                    drawVisualization(equation);
+                }
+            });
+            
+            // 监听全屏变化事件
+            document.addEventListener('fullscreenchange', handleFullscreenChange);
+            document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+            document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+            document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+            
+            function handleFullscreenChange() {
+                if (!document.fullscreenElement && 
+                    !document.webkitFullscreenElement && 
+                    !document.mozFullScreenElement && 
+                    !document.msFullscreenElement) {
+                    // 退出全屏
+                    exitFullscreen();
+                }
+            }
+            
+            // 添加自动补全键盘支持
+            equationInput.addEventListener('keydown', function(e) {
+                if (e.key === '(' || e.key === ')' || e.key === '^') {
+                    const cursorPos = this.selectionStart;
+                    const currentValue = this.value;
+                    
+                    if (e.key === '(') {
+                        // 自动补全右括号
+                        this.value = currentValue.slice(0, cursorPos) + '()' + currentValue.slice(cursorPos);
+                        this.setSelectionRange(cursorPos + 1, cursorPos + 1);
+                        e.preventDefault();
+                    } else if (e.key === '^') {
+                        // 自动补全指数括号
+                        this.value = currentValue.slice(0, cursorPos) + '^(' + currentValue.slice(cursorPos);
+                        this.setSelectionRange(cursorPos + 2, cursorPos + 2);
+                        e.preventDefault();
+                    }
+                    
+                    updateLatex();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
